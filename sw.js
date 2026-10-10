@@ -1,7 +1,7 @@
 /* Service worker: tiene l'app sul dispositivo per usarla senza connessione.
    Quando pubblichi una nuova versione dell'app, aumenta il numero qui sotto. */
-const VERSIONE = 'rv-v3';
-const FILE = ['./', 'index.html', 'app.js', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png'];
+const VERSIONE = 'rv-v4';
+const FILE = ['./', 'index.html', 'app.js', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png', 'logo.png'];
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(VERSIONE).then(c => c.addAll(FILE)).then(() => self.skipWaiting()));
