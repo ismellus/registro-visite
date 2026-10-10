@@ -1,6 +1,6 @@
 /* Service worker: tiene l'app sul dispositivo per usarla senza connessione.
    Quando pubblichi una nuova versione dell'app, aumenta il numero qui sotto. */
-const VERSIONE = 'rv-v2';
+const VERSIONE = 'rv-v3';
 const FILE = ['./', 'index.html', 'app.js', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png'];
 
 self.addEventListener('install', e => {

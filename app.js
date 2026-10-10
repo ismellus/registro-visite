@@ -126,6 +126,7 @@ function renderList() {
 function renderMain() {
   const m = $('#main');
   $('#grid').classList.toggle('has-detail', !cfg || ui.view !== 'welcome');
+  $('#grid').classList.toggle('setup-mode', !cfg);
   if (!cfg) { m.innerHTML = setupHTML(); bindMain(); return; }
   const c = ui.sel ? clienti().find(x => x.nome === ui.sel) : null;
   if ((ui.view === 'detail' || ui.view === 'visit') && !c) ui.view = 'welcome';
@@ -237,7 +238,7 @@ function queueHTML() {
 function okHTML() {
   const i = ui.okInfo || {};
   return `<div><h1 style="color:var(--si)">Visita salvata</h1><div class="meta">${esc(i.cliente || '')}</div></div>
-  <div class="msg ${navigator.onLine ? 'info' : 'warn'}">${navigator.onLine ? 'Salvata sul dispositivo. Invio al foglio in corso.' : 'Salvata sul dispositivo. Sei offline: verrà inviata al foglio alla prossima sincronizzazione.'}</div>
+  <div class="msg ${!queue.visite.some(v => v.id === i.id) ? 'ok' : navigator.onLine ? 'info' : 'warn'}">${!queue.visite.some(v => v.id === i.id) ? 'Inviata e scritta sul foglio.' : syncing ? 'Salvata sul dispositivo. Invio al foglio in corso…' : navigator.onLine ? 'Salvata sul dispositivo. Verrà inviata alla prossima sincronizzazione.' : 'Salvata sul dispositivo. Sei offline: verrà inviata al foglio alla prossima sincronizzazione.'}</div>
   <div class="actions" style="position:static;border:0"><button class="btn" type="button" data-act="detail">Apri scheda cliente</button><button class="btn primary" type="button" data-act="home">Altro cliente</button></div>`;
 }
 
@@ -332,7 +333,7 @@ function saveVisit() {
   const fb = [...document.querySelectorAll('#vf [data-fb]')].filter(s => s.value).map(s => ({ id: s.dataset.fb, feedback: s.value, prodotto: s.closest('.fbrow').firstElementChild.textContent.split('·')[0].trim(), cliente: c.nome }));
   queue.visite.push(v); queue.feedback.push(...fb);
   if (!saveQueue()) { queue.visite.pop(); queue.feedback.splice(queue.feedback.length - fb.length, fb.length); return; }
-  ui.okInfo = { cliente: c.nome };
+  ui.okInfo = { cliente: c.nome, id: v.id };
   renderBar(); go('ok');
   if (navigator.onLine) sync(false);
 }
