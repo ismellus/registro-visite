@@ -29,7 +29,7 @@ const codaVuota = () => ({ nuoviClienti: [], visite: [], feedback: [], risposte:
 let cfg = store.get(K.cfg, null);
 let data = store.get(K.data, null);
 let queue = { ...codaVuota(), ...(store.get(K.queue, null) || {}) };
-let ui = { sel: null, selQ: null, view: 'dash', filter: 'all', q: '', okInfo: null, confirmDel: null, tutte: false };
+let ui = { calMese: null, calGiorno: null, sel: null, selQ: null, view: 'dash', filter: 'all', q: '', okInfo: null, confirmDel: null, tutte: false };
 let syncing = false;
 
 function saveQueue() {
@@ -128,7 +128,7 @@ function renderBar() {
   $('#syncBtn').textContent = syncing ? 'Invio in corso…' : 'Sincronizza';
   $('#last').textContent = data && data.syncedAt ? 'Dati del ' + fmtTime(data.syncedAt) : '';
   $('#opLine').textContent = me() ? `Is Mellus · ${me()}` : 'Is Mellus · Sales Dubai';
-  document.querySelectorAll('#tabs [data-nav]').forEach(b => b.setAttribute('aria-current', String(b.dataset.nav === (ui.view === 'list' ? 'list' : ui.view === 'dash' ? 'dash' : ''))));
+  document.querySelectorAll('#tabs [data-nav]').forEach(b => b.setAttribute('aria-current', String(b.dataset.nav === (['list', 'dash', 'cal'].includes(ui.view) ? ui.view : ''))));
 }
 
 /* ---------- lista clienti ---------- */
@@ -169,6 +169,7 @@ function renderMain() {
   else if (ui.view === 'resp') m.innerHTML = respHTML(c, q);
   else if (ui.view === 'new') m.innerHTML = newHTML();
   else if (ui.view === 'queue') m.innerHTML = queueHTML();
+  else if (ui.view === 'cal') m.innerHTML = calHTML();
   else if (ui.view === 'ok') m.innerHTML = okHTML();
   bindMain();
 }
@@ -212,7 +213,7 @@ function dashHTML() {
   const ora = new Date().getHours();
   return `<div class="dash-head"><div><h1>${ora < 13 ? 'Buongiorno' : ora < 18 ? 'Buon pomeriggio' : 'Buonasera'}${op ? ', ' + esc(op) : ''}</h1>
    <div class="meta">${new Date().toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</div></div>
-   <div class="d-actions"><button class="btn" type="button" data-act="list">Tutti i clienti</button><button class="btn primary" type="button" data-act="new">+ Nuovo cliente</button></div></div>
+   <div class="d-actions"><button class="btn" type="button" data-act="cal">Calendario</button><button class="btn" type="button" data-act="list">Tutti i clienti</button><button class="btn primary" type="button" data-act="new">+ Nuovo cliente</button></div></div>
   ${pendingCount() ? `<div class="msg warn">Hai ${pendingCount()} ${pendingCount() === 1 ? 'elemento' : 'elementi'} da inviare. Sincronizza a fine giornata, con il Wi-Fi o la rete mobile.</div>` : ''}
   <div class="kpis">
    ${kpi(late.length, 'Follow-up scaduti', 'late', true)}
@@ -228,6 +229,45 @@ function dashHTML() {
    <section><h2>Quotazioni in attesa di risposta</h2>${qg.length ? `<ul class="dl">${qg.slice(0, 8).map(x => riga(x.cliente, `${x.righe.length} ${x.righe.length === 1 ? 'prodotto' : 'prodotti'}: ${esc(x.righe.slice(0, 3).map(q => q.prodotto).join(', '))}${x.righe.length > 3 ? '…' : ''}`, x.pend ? '<span class="tag">da inviare</span>' : '', `${fmt(x.data)} · ${giorni(x.data)} gg`)).join('')}</ul>` : vuoto('Nessuna quotazione in attesa.')}</section>
    <section><h2>Ultime visite</h2>${vis.length ? `<ul class="dl">${vis.slice(0, 8).map(v => riga(v.cliente, `${esc(v.tipo || '')}${v.contatto ? ' con ' + esc(v.contatto) : ''}${v.op ? ' · ' + esc(v.op) : ''}`, v.esitoVisita ? pillT(v.esitoVisita) : '', fmt(v.data))).join('')}</ul>` : vuoto('Nessuna visita registrata.')}</section>
   </div>`;
+}
+
+/* ---------- calendario: follow-up (prossima azione) e visite fatte ---------- */
+const MESI = ['gennaio', 'febbraio', 'marzo', 'aprile', 'maggio', 'giugno', 'luglio', 'agosto', 'settembre', 'ottobre', 'novembre', 'dicembre'];
+function calHTML() {
+  const t = today(), mese = ui.calMese || t.slice(0, 7), sel = ui.calGiorno || t;
+  const cs = clienti(), giorni = {};
+  const g = d => (giorni[d] = giorni[d] || { follow: [], visite: [] });
+  cs.forEach(c => {
+    if (c.dataProssima) g(c.dataProssima).follow.push(c);
+    c.visite.forEach(v => { if (v.data) g(String(v.data).slice(0, 10)).visite.push({ c, v }); });
+  });
+  const [y, m] = mese.split('-').map(Number);
+  const primo = new Date(y, m - 1, 1), offset = (primo.getDay() + 6) % 7; // lunedì = 0
+  const inizio = new Date(y, m - 1, 1 - offset);
+  const celle = [];
+  for (let i = 0; i < 42; i++) {
+    const d = new Date(inizio.getFullYear(), inizio.getMonth(), inizio.getDate() + i), iso = isoDay(d), x = giorni[iso] || { follow: [], visite: [] };
+    if (i >= 35 && d.getMonth() !== m - 1) break;
+    const scad = x.follow.length && iso < t;
+    celle.push(`<button type="button" class="cday${d.getMonth() !== m - 1 ? ' out' : ''}${iso === t ? ' today' : ''}" data-day="${iso}" aria-pressed="${iso === sel}" aria-label="${d.getDate()} ${MESI[d.getMonth()]}: ${x.follow.length} follow-up, ${x.visite.length} visite">
+      <span class="n">${d.getDate()}</span>${x.follow.length ? `<span class="badge ${scad ? 'b-l' : 'b-f'}">${x.follow.length}<i> follow-up</i></span>` : ''}${x.visite.length ? `<span class="badge b-v">${x.visite.length}<i> ${x.visite.length === 1 ? 'visita' : 'visite'}</i></span>` : ''}</button>`);
+  }
+  const x = giorni[sel] || { follow: [], visite: [] };
+  const late = cs.filter(isLate).length;
+  const riga = (nome, sopra, destra, cls) => `<li><button type="button" class="rlink" data-n="${esc(nome)}"><span class="cname">${esc(nome)}</span><span class="${cls || 'when'}">${destra}</span><span class="csub">${sopra}</span></button></li>`;
+  const dataLunga = new Date(sel + 'T12:00:00').toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long' });
+  return `<div class="navrow"><button class="btn ghost" type="button" data-act="dash">← Dashboard</button></div>
+  <div class="dash-head"><div><h1>Calendario</h1><div class="meta">Follow-up (prossima azione dei clienti) e visite registrate</div></div>
+   <div class="d-actions"><button class="btn" type="button" data-calnav="-1" aria-label="Mese precedente">‹</button><button class="btn" type="button" data-calnav="0">Oggi</button><button class="btn" type="button" data-calnav="1" aria-label="Mese successivo">›</button></div></div>
+  ${late ? `<button type="button" class="msg err linkmsg" data-filter="late">${late} follow-up scaduti da recuperare: vedi l'elenco</button>` : ''}
+  <h2 class="calmese">${MESI[m - 1]} ${y}</h2>
+  <div class="calgrid" role="grid"><span>Lun</span><span>Mar</span><span>Mer</span><span>Gio</span><span>Ven</span><span>Sab</span><span>Dom</span>${celle.join('')}</div>
+  <div class="legenda"><span class="badge b-f">follow-up</span><span class="badge b-l">scaduto</span><span class="badge b-v">visite fatte</span></div>
+  <section><h2>${esc(dataLunga)}</h2>
+   ${x.follow.length ? `<h3 class="sub">Follow-up</h3><ul class="dl">${x.follow.map(c => riga(c.nome, esc(c.prossimaAzione || '') + (c.priorita ? ' · priorità ' + esc(c.priorita) : ''), isLate(c) ? 'scaduto' : '', 'when late')).join('')}</ul>` : ''}
+   ${x.visite.length ? `<h3 class="sub">Visite</h3><ul class="dl">${x.visite.map(({ c, v }) => riga(c.nome, `${esc(v.tipo || '')}${v.contatto ? ' con ' + esc(v.contatto) : ''}${v.op ? ' · ' + esc(v.op) : ''} ${pillT(v.esitoVisita)}${v._pend ? ' <span class="tag">da inviare</span>' : ''}`, '')).join('')}</ul>` : ''}
+   ${!x.follow.length && !x.visite.length ? '<p class="empty">Niente in programma in questo giorno.</p>' : ''}
+  </section>`;
 }
 
 /* ---------- scheda cliente con storico ---------- */
@@ -390,6 +430,13 @@ function bindMain() {
   document.querySelectorAll('#main [data-filter]').forEach(b => b.onclick = () => apriFiltro(b.dataset.filter));
   document.querySelectorAll('#main [data-n]').forEach(b => b.onclick = () => go('detail', b.dataset.n));
   document.querySelectorAll('#main [data-q]').forEach(b => b.onclick = () => { ui.selQ = b.dataset.q; ui.respTutte = !!b.dataset.all; go('resp'); });
+  document.querySelectorAll('#main [data-day]').forEach(b => b.onclick = () => { ui.calGiorno = b.dataset.day; if (b.dataset.day.slice(0, 7) !== (ui.calMese || today().slice(0, 7))) ui.calMese = b.dataset.day.slice(0, 7); renderMain(); });
+  document.querySelectorAll('#main [data-calnav]').forEach(b => b.onclick = () => {
+    const n = +b.dataset.calnav;
+    if (!n) { ui.calMese = today().slice(0, 7); ui.calGiorno = today(); }
+    else { const [y, m] = (ui.calMese || today().slice(0, 7)).split('-').map(Number); const d = new Date(y, m - 1 + n, 1); ui.calMese = isoDay(d).slice(0, 7); ui.calGiorno = isoDay(d); }
+    renderMain();
+  });
   const sa = $('#showAll'); if (sa) sa.onclick = () => { ui.tutte = true; renderMain(); };
   document.querySelectorAll('#main .seg').forEach(s => s.onclick = e => { const b = e.target.closest('button'); if (!b) return; const was = b.getAttribute('aria-pressed') === 'true'; s.querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', !was && x === b)); });
   const sf = $('#sf'); if (sf) sf.onsubmit = e => { e.preventDefault(); connect(); };

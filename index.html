@@ -146,7 +146,7 @@ code{font-family:var(--f-mono);font-size:12.5px;background:var(--sunk);padding:1
 .tabs{display:flex;gap:6px;margin-bottom:12px}
 .tabs button{flex:1;border:1px solid var(--line);background:var(--surface);border-radius:8px;padding:9px;font-weight:600;cursor:pointer}
 .tabs button[aria-current="true"]{background:var(--accent);color:var(--accent-fg);border-color:var(--accent)}
-@media (min-width:900px){.tabs{display:none!important}}
+@media (min-width:900px){.tabs [data-nav=list]{display:none}.tabs{max-width:420px}}
 .navrow{display:flex;gap:4px;flex-wrap:wrap;align-self:flex-start}
 .dash-head{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;align-items:flex-start}
 .d-actions{display:flex;gap:8px;flex-wrap:wrap}
@@ -196,6 +196,24 @@ details.qdet[open] summary{margin-bottom:6px}
 .qgroup .btn.small,.vsub>.btn.small{margin-top:6px}
 label.check{flex-direction:row;align-items:center;gap:8px;font-size:14px;color:var(--fg)}
 label.check input{width:20px;height:20px}
+
+/* calendario */
+.calmese{font-family:var(--f-display);font-size:18px;text-transform:capitalize;letter-spacing:0;color:var(--fg);margin:0}
+.calgrid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:4px}
+.calgrid>span{font-size:11.5px;color:var(--muted);text-align:center;font-weight:600;padding-bottom:2px}
+.cday{min-height:72px;border:1px solid var(--line);border-radius:8px;padding:4px 6px;background:var(--surface);cursor:pointer;display:flex;flex-direction:column;align-items:flex-start;gap:3px;font:inherit;color:inherit;text-align:left;min-width:0}
+.cday:hover{background:var(--sunk)}
+.cday.out{opacity:.45}
+.cday.today .n{background:var(--accent);color:var(--accent-fg);border-radius:999px;padding:0 6px}
+.cday[aria-pressed="true"]{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent);background:var(--accent-soft)}
+.cday .n{font-size:12.5px;font-weight:600;font-variant-numeric:tabular-nums}
+.badge{font-size:11px;border-radius:999px;padding:0 6px;font-weight:600;white-space:nowrap;max-width:100%;overflow:hidden;text-overflow:ellipsis}
+.badge i{font-style:normal}
+.b-f{background:var(--accent-soft);color:var(--accent)} .b-l{background:var(--no-bg);color:var(--no)} .b-v{background:var(--si-bg);color:var(--si)}
+.legenda{display:flex;gap:8px;flex-wrap:wrap}
+h3.sub{font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin:10px 0 2px;font-weight:600}
+.linkmsg{display:block;width:100%;text-align:left;border:0;cursor:pointer;font:inherit}
+@media (max-width:640px){.cday{min-height:52px;padding:3px 4px}.badge i{display:none}}
 </style>
 </head>
 <body>
@@ -212,6 +230,7 @@ label.check input{width:20px;height:20px}
   <nav class="tabs" id="tabs" hidden aria-label="Sezioni">
     <button type="button" data-nav="dash">Dashboard</button>
     <button type="button" data-nav="list">Clienti</button>
+    <button type="button" data-nav="cal">Calendario</button>
   </nav>
   <div id="flash"></div>
   <div class="grid" id="grid">
