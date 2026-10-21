@@ -6,7 +6,11 @@ const CONFIG = {
   obbligatori: { esito: true, esitoVisita: true, step: true, follow: true }, // campi obbligatori nella visita
   visiteMostrate: 10, // nello storico della scheda; le altre con "Mostra tutte"
 };
-const K = { cfg: 'rv_cfg', data: 'rv_data', queue: 'rv_queue' };
+const K = { cfg: 'rv_cfg', data: 'rv_data', queue: 'rv_queue', sort: 'rv_sort' };
+// Semaforo dell'ultima interazione (giorni): fino a 7 verde, fino a 14 arancione, fino a 30 rosso, oltre nero.
+// Stesse soglie della colonna "Giorni" nell'INDICE del foglio (installaSemaforo in Registro.gs).
+const SEMAFORO = [7, 14, 30];
+const ORDINI = { az: 'Nome A → Z', za: 'Nome Z → A', vecchia: 'Da più tempo senza visita', recente: 'Visitati di recente', prio: 'Priorità', prossima: 'Prossima azione' };
 const DEF_LISTE = {
   'Tipo visita': ['Visita', 'Call', 'Email/WhatsApp', 'Meeting', 'Food testing', 'Consegna samples', 'Altro'],
   'Tipologia': ['Hotel', 'Ristorante', 'Retail / Market', 'Catering', 'Cloud kitchen', 'Altro'],
@@ -29,7 +33,7 @@ const codaVuota = () => ({ nuoviClienti: [], visite: [], feedback: [], risposte:
 let cfg = store.get(K.cfg, null);
 let data = store.get(K.data, null);
 let queue = { ...codaVuota(), ...(store.get(K.queue, null) || {}) };
-let ui = { calMese: null, calGiorno: null, sel: null, selQ: null, view: 'dash', filter: 'all', q: '', okInfo: null, confirmDel: null, tutte: false };
+let ui = { calMese: null, calGiorno: null, sel: null, selQ: null, view: 'dash', filter: 'all', q: '', okInfo: null, confirmDel: null, tutte: false, sort: ORDINI[store.get(K.sort, 'az')] ? store.get(K.sort, 'az') : 'az' };
 let syncing = false;
 
 function saveQueue() {
@@ -63,6 +67,26 @@ const perRiga = (a, b) => String(a.idVisita || a.data).localeCompare(String(b.id
 const opts = (arr, sel) => arr.map(o => `<option${o === sel ? ' selected' : ''}>${esc(o)}</option>`).join('');
 const isLate = c => c.dataProssima && c.dataProssima < today();
 const me = () => (data && data.operatore) || '';
+// Ultima interazione: la più recente tra quella del foglio (INDICE, colonna "Ultima interazione")
+// e le visite in memoria, comprese quelle registrate offline e non ancora inviate.
+const ultimaInt = c => [c.ultima || '', ...c.visite.map(v => v.data || '')].reduce((m, d) => String(d).slice(0, 10) > m ? String(d).slice(0, 10) : m, '');
+function semaforo(c) {
+  const u = ultimaInt(c);
+  if (!u) return { cls: 'sv-n', gg: null, testo: 'mai', titolo: 'Nessuna visita registrata' };
+  const gg = Math.max(0, giorni(u));
+  const cls = gg <= SEMAFORO[0] ? 'sv-g' : gg <= SEMAFORO[1] ? 'sv-o' : gg <= SEMAFORO[2] ? 'sv-r' : 'sv-k';
+  return { cls, gg, testo: gg === 0 ? 'oggi' : gg + ' gg', titolo: 'Ultima interazione ' + fmt(u) };
+}
+const badgeSV = c => { const s = semaforo(c); return `<span class="sv ${s.cls}" title="${esc(s.titolo)}">${s.testo}</span>`; };
+const PRIO = { Alta: 0, Media: 1, Bassa: 2 };
+const ordina = {
+  az: (a, b) => a.nome.localeCompare(b.nome),
+  za: (a, b) => b.nome.localeCompare(a.nome),
+  vecchia: (a, b) => (ultimaInt(a) || '0').localeCompare(ultimaInt(b) || '0') || a.nome.localeCompare(b.nome), // mai visitati in cima
+  recente: (a, b) => (ultimaInt(b) || '0').localeCompare(ultimaInt(a) || '0') || a.nome.localeCompare(b.nome),
+  prio: (a, b) => (PRIO[a.priorita] ?? 9) - (PRIO[b.priorita] ?? 9) || (ultimaInt(a) || '0').localeCompare(ultimaInt(b) || '0') || a.nome.localeCompare(b.nome),
+  prossima: (a, b) => (a.dataProssima || '9999').localeCompare(b.dataProssima || '9999') || a.nome.localeCompare(b.nome),
+};
 function flash(kind, text) {
   $('#flash').innerHTML = text ? `<div class="msg ${kind}" role="status">${text}</div>` : '';
   if (kind === 'ok' || kind === 'info') { const t = text; setTimeout(() => { if ($('#flash').textContent.includes(t.replace(/<[^>]+>/g, '').slice(0, 20))) $('#flash').innerHTML = ''; }, 6000); }
@@ -144,12 +168,13 @@ function renderList() {
     if (ui.filter === 'mine' && c.sales !== op) return false;
     if (['SI', 'NO', 'BSS'].includes(ui.filter) && c.account !== ui.filter) return false;
     return !q || norm(c.nome).includes(q) || c.contatti.some(k => norm(k.nome).includes(q));
-  }).sort((a, b) => a.nome.localeCompare(b.nome));
+  }).sort(ordina[ui.sort] || ordina.az);
   $('#count').textContent = `${rows.length} clienti`;
+  if ($('#sort').value !== ui.sort) $('#sort').value = ui.sort;
   $('#list').innerHTML = rows.map(c => {
     const sub = c.dataProssima ? `<span class="${isLate(c) ? 'late' : ''}">${fmt(c.dataProssima)}</span> · ${esc(c.prossimaAzione)}` : esc(c.note || 'Nessuna nota');
     const tag = c._pend ? '<span class="tag">nuovo</span>' : (c._pendVisite ? `<span class="tag">${c._pendVisite} da inviare</span>` : '');
-    return `<li><button type="button" data-n="${esc(c.nome)}" aria-current="${ui.sel === c.nome && ['detail', 'visit', 'resp'].includes(ui.view)}"><span class="cname">${esc(c.nome)}${tag}</span>${pill(c.account)}<span class="csub">${sub}</span></button></li>`;
+    return `<li><button type="button" data-n="${esc(c.nome)}" aria-current="${ui.sel === c.nome && ['detail', 'visit', 'resp'].includes(ui.view)}"><span class="cname">${esc(c.nome)}${tag}</span><span class="cright">${badgeSV(c)}${pill(c.account)}</span><span class="csub">${sub}</span></button></li>`;
   }).join('') || `<li class="empty" style="padding:12px 4px">Nessun cliente trovato. <button class="btn ghost" type="button" data-act="new">Crealo come nuovo cliente</button></li>`;
 }
 
@@ -307,7 +332,8 @@ function detailHTML(c) {
   const attesa = gruppiQuot([c]);
   return `<div class="navrow"><button class="btn ghost" type="button" data-act="dash">← Dashboard</button><button class="btn ghost back" type="button" data-act="list">← Clienti</button></div>
   ${c._err ? `<div class="msg err">Il cliente non è stato creato sul foglio: ${esc(c._err)}</div>` : ''}
-  <div class="d-head"><div><h1>${esc(c.nome)}${c._pend ? '<span class="tag">nuovo · da inviare</span>' : ''}</h1><div class="meta">${esc([c.tipologia, c.canale, c.zona, c.sales && 'Sales: ' + c.sales].filter(Boolean).join(' · ') || 'Anagrafica da completare')}</div></div>
+  <div class="d-head"><div><h1>${esc(c.nome)}${c._pend ? '<span class="tag">nuovo · da inviare</span>' : ''}</h1><div class="meta">${esc([c.tipologia, c.canale, c.zona, c.sales && 'Sales: ' + c.sales].filter(Boolean).join(' · ') || 'Anagrafica da completare')}</div>
+  <div class="meta">${badgeSV(c)} ${ultimaInt(c) ? 'Ultima interazione ' + fmt(ultimaInt(c)) : 'Nessuna visita registrata'}</div></div>
   <button class="btn primary" type="button" data-act="visit">Registra visita</button></div>
   <div class="status"><div class="st"><span>Quotation</span>${pill(c.quotation)}</div><div class="st"><span>Food testing</span>${pill(c.foodtesting)}</div><div class="st"><span>Account</span>${pill(c.account)}</div></div>
   <div class="next"><div><h2 style="margin:0 0 4px">Prossima azione${c.priorita ? ' · priorità ' + esc(c.priorita) : ''}</h2>${c.prossimaAzione ? esc(c.prossimaAzione) : '<span class="empty">Non impostata</span>'}</div><div class="when ${isLate(c) ? 'late' : ''}">${c.dataProssima ? fmt(c.dataProssima) + (isLate(c) ? ' · scaduta' : '') : ''}</div></div>
@@ -629,6 +655,9 @@ function render() { renderBar(); renderList(); renderMain(); }
 $('#q').oninput = e => { ui.q = e.target.value; renderList(); };
 $('#newBtn').onclick = openNew;
 document.querySelectorAll('.chip').forEach(ch => ch.onclick = () => { ui.filter = ch.dataset.f; renderList(); });
+$('#sort').innerHTML = Object.entries(ORDINI).map(([k, t]) => `<option value="${k}">${esc(t)}</option>`).join('');
+$('#sort').value = ui.sort;
+$('#sort').onchange = e => { ui.sort = e.target.value; store.set(K.sort, ui.sort); renderList(); };
 $('#list').onclick = e => { const b = e.target.closest('button[data-n]'); if (b) go('detail', b.dataset.n); else if (e.target.closest('[data-act=new]')) openNew(); };
 $('#syncBtn').onclick = () => sync(true);
 $('#queueBtn').onclick = () => go('queue');

@@ -73,6 +73,15 @@ header.top{display:flex;align-items:center;justify-content:space-between;gap:10p
 .chip{border:1px solid var(--line);background:transparent;border-radius:999px;padding:5px 11px;font-size:13px;cursor:pointer}
 .chip[aria-pressed="true"]{background:var(--fg);color:var(--bg);border-color:var(--fg)}
 .count{font-size:12px;color:var(--muted)}
+.listbar{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.sortlbl{flex-direction:row;align-items:center;gap:6px;font-size:12px}
+.sortlbl select{width:auto;padding:6px 8px;font-size:14px}
+.cright{display:inline-flex;gap:6px;align-items:center}
+.sv{display:inline-block;font-size:11px;font-weight:700;padding:2px 7px;border-radius:999px;white-space:nowrap;font-variant-numeric:tabular-nums;border:1px solid transparent}
+.sv-g{background:#1e8e3e;color:#fff} .sv-o{background:#f29900;color:#1f1b26} .sv-r{background:#d93025;color:#fff}
+.sv-k{background:#000;color:#fff;border-color:var(--line)} .sv-n{background:var(--nd-bg);color:var(--nd);border-color:var(--line)}
+.svleg{display:flex;flex-wrap:wrap;gap:4px;align-items:center;font-size:11px;color:var(--muted)}
+.svleg .sv{font-size:10.5px;padding:1px 6px}
 ul.list{list-style:none;margin:0;padding:0;overflow:auto;min-height:0}
 ul.list li button{width:100%;text-align:left;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:2px 10px;padding:11px 8px;border:0;border-bottom:1px solid var(--line);background:transparent;cursor:pointer;border-radius:0}
 ul.list li button:hover{background:var(--sunk)}
@@ -249,7 +258,9 @@ h3.sub{font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--
         <button class="chip" data-f="BSS" aria-pressed="false" type="button">BSS</button>
         <button class="chip" data-f="NO" aria-pressed="false" type="button">Account NO</button>
       </div>
-      <div class="count" id="count"></div>
+      <div class="listbar"><span class="count" id="count"></span>
+        <label class="sortlbl">Ordina<select id="sort" aria-label="Ordina i clienti"></select></label></div>
+      <div class="svleg" aria-label="Legenda: giorni dall'ultima interazione"><span class="sv sv-g">0–7</span><span class="sv sv-o">8–14</span><span class="sv sv-r">15–30</span><span class="sv sv-k">30+</span><span class="sv sv-n">mai</span><span>giorni dall'ultima visita</span></div>
       <ul class="list" id="list"></ul>
     </aside>
     <main class="panel pane-main" id="main"></main>
